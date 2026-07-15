@@ -1,0 +1,28 @@
+---
+- name: Job 1 - Vérification de l'état des services
+  hosts: all_servers
+  become: true
+  vars:
+    services_to_check:
+      - ssh
+      - cron
+
+  tasks:
+    - name: Collecter les informations sur les services (facts)
+      ansible.builtin.service_facts:
+
+    - name: Afficher l'état de chaque service surveillé
+      ansible.builtin.debug:
+        msg: "{{ item }} est {{ ansible_facts.services[item + '.service'].state | default('introuvable') }}"
+      loop: "{{ services_to_check }}"
+
+    - name: Vérifier explicitement si SSH est actif
+      ansible.builtin.service:
+        name: ssh
+        state: started
+      check_mode: true
+      register: ssh_status
+
+    - name: Afficher le résultat de la vérification SSH
+      ansible.builtin.debug:
+        var: ssh_status
