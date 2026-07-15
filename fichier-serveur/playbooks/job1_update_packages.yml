@@ -1,0 +1,44 @@
+---
+- name: Job 1 - Mise à jour des paquets système (multi-distribution)
+  hosts: all_servers
+  become: true
+
+  tasks:
+    - name: Mettre à jour le cache et les paquets (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == "Debian"
+      register: apt_result
+
+    - name: Mettre à jour tous les paquets (CentOS/Rocky Linux)
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        update_cache: true
+      when: ansible_facts['os_family'] == "RedHat"
+      register: yum_result
+
+    - name: Afficher le résultat pour les hôtes Debian
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} ({{ ansible_facts['os_family'] }}) mis à jour: {{ apt_result.changed | default(false) }}"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Afficher le résultat pour les hôtes RedHat
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} ({{ ansible_facts['os_family'] }}) mis à jour: {{ yum_result.changed | default(false) }}"
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Vérifier si un redémarrage est nécessaire (Debian)
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Alerter si redémarrage nécessaire
+      ansible.builtin.debug:
+        msg: "⚠️ Redémarrage requis sur {{ inventory_hostname }}"
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - reboot_required_file.stat.exists
