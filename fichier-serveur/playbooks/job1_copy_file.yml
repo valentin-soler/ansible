@@ -1,0 +1,18 @@
+---
+- name: Job 1 - Copie d'un fichier vers les cibles
+  hosts: all_servers
+  become: true
+
+  tasks:
+    - name: Copier le fichier hello.txt vers les nœuds
+      ansible.builtin.copy:
+        src: ../files/hello.txt
+        dest: /tmp/hello.txt
+        owner: root
+        group: root
+        mode: '0644'
+      register: copy_result
+
+    - name: Afficher le résultat de la copie
+      ansible.builtin.debug:
+        msg: "Fichier copié sur {{ inventory_hostname }} : {{ copy_result.dest }}"
