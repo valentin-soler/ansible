@@ -1,0 +1,93 @@
+---
+- name: Job 2 - Configuration du pare-feu
+  hosts: all_servers
+  become: true
+  vars:
+    ssh_port: 2002
+    allowed_ports:
+      - 2002
+      - 80
+      - 443
+
+  tasks:
+    ### DEBIAN / UBUNTU - UFW ###
+    - name: Installer UFW (Debian)
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Définir la politique par défaut - trafic entrant refusé (Debian)
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Définir la politique par défaut - trafic sortant autorisé (Debian)
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Autoriser les ports nécessaires (Debian)
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: "{{ allowed_ports }}"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Activer UFW (Debian)
+      community.general.ufw:
+        state: enabled
+      when: ansible_facts['os_family'] == "Debian"
+
+    ### ROCKY / CENTOS - FIREWALLD ###
+    - name: Installer firewalld (Rocky)
+      ansible.builtin.yum:
+        name: firewalld
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Démarrer et activer firewalld (Rocky)
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Définir la zone par défaut en drop (Rocky)
+      ansible.builtin.command: firewall-cmd --set-default-zone=drop
+      changed_when: false
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Autoriser les ports nécessaires (Rocky)
+      ansible.posix.firewalld:
+        port: "{{ item }}/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ allowed_ports }}"
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Recharger firewalld pour appliquer les règles (Rocky)
+      ansible.builtin.command: firewall-cmd --reload
+      changed_when: false
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Afficher les ports ouverts (Rocky)
+      ansible.builtin.command: firewall-cmd --list-ports
+      register: rocky_ports
+      changed_when: false
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Afficher le statut UFW (Debian)
+      ansible.builtin.command: ufw status
+      register: debian_ports
+      changed_when: false
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Afficher le résultat final
+      ansible.builtin.debug:
+        msg: "{{ rocky_ports.stdout if ansible_facts['os_family'] == 'RedHat' else debian_ports.stdout }}"
