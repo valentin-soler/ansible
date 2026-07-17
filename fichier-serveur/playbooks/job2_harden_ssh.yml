@@ -44,6 +44,14 @@
       failed_when: false
       changed_when: false
 
+    - name: Ouvrir le port SSH personnalisé dans firewalld (Rocky)
+      ansible.posix.firewalld:
+        port: "{{ ssh_port }}/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+      when: ansible_facts['os_family'] == "RedHat"
+      
   handlers:
     - name: Redémarrer SSH
       ansible.builtin.service:
