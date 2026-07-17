@@ -1,0 +1,51 @@
+---
+- name: Job 2 - Durcissement de la configuration SSH
+  hosts: all_servers
+  become: true
+  vars:
+    ssh_port: 2002
+
+  tasks:
+    - name: Désactiver la connexion root (PermitRootLogin)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        backup: true
+      notify: Redémarrer SSH
+
+    - name: Désactiver l'authentification par mot de passe
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        backup: true
+      notify: Redémarrer SSH
+
+    - name: Changer le port SSH par défaut
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port'
+        line: "Port {{ ssh_port }}"
+        backup: true
+      notify: Redémarrer SSH
+
+    - name: Désactiver X11Forwarding
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?X11Forwarding'
+        line: 'X11Forwarding no'
+        backup: true
+      notify: Redémarrer SSH
+
+    - name: Autoriser le nouveau port SSH via SELinux (Rocky uniquement)
+      ansible.builtin.command: "semanage port -a -t ssh_port_t -p tcp {{ ssh_port }}"
+      when: ansible_facts['os_family'] == "RedHat"
+      failed_when: false
+      changed_when: false
+
+  handlers:
+    - name: Redémarrer SSH
+      ansible.builtin.service:
+        name: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
+        state: restarted
