@@ -3,9 +3,12 @@
   hosts: all_servers
   become: true
   vars:
-    services_to_check:
+    services_debian:
       - ssh
       - cron
+    services_redhat:
+      - sshd
+      - crond
 
   tasks:
     - name: Collecter les informations sur les services (facts)
