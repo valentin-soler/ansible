@@ -1,0 +1,38 @@
+---
+- name: Job 2 - Création de l'utilisateur admin dédié
+  hosts: all_servers
+  become: true
+  vars:
+    admin_user: ansible_admin
+
+  tasks:
+    - name: Créer l'utilisateur ansible_admin avec mot de passe haché
+      ansible.builtin.user:
+        name: "{{ admin_user }}"
+        password: "{{ vault_ansible_admin_password }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Ajouter ansible_admin au groupe sudo (Debian/Ubuntu)
+      ansible.builtin.user:
+        name: "{{ admin_user }}"
+        groups: sudo
+        append: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Ajouter ansible_admin au groupe wheel (RedHat/Rocky)
+      ansible.builtin.user:
+        name: "{{ admin_user }}"
+        groups: wheel
+        append: true
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Vérifier les groupes de l'utilisateur créé
+      ansible.builtin.command: id "{{ admin_user }}"
+      register: id_result
+      changed_when: false
+
+    - name: Afficher les groupes de ansible_admin
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} : {{ id_result.stdout }}"
