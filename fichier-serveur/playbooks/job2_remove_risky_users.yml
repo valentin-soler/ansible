@@ -1,0 +1,37 @@
+---
+- name: Job 2 - Suppression des utilisateurs inutiles ou à risque
+  hosts: all_servers
+  become: true
+  vars:
+    risky_users:
+      - games
+      - lp
+      - news
+      - uucp
+      - gopher
+      - ftp
+      - operator
+
+  tasks:
+    - name: Vérifier l'existence des utilisateurs avant suppression
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      loop: "{{ risky_users }}"
+      register: user_check
+      failed_when: false
+
+    - name: Supprimer les utilisateurs à risque s'ils existent
+      ansible.builtin.user:
+        name: "{{ item.item }}"
+        state: absent
+        remove: true
+        force: true
+      loop: "{{ user_check.results }}"
+      when: item.ansible_facts is defined and item.ansible_facts.getent_passwd is defined
+
+    - name: Afficher les utilisateurs supprimés
+      ansible.builtin.debug:
+        msg: "Utilisateur {{ item.item }} traité sur {{ inventory_hostname }}"
+      loop: "{{ user_check.results }}"
+      when: item.ansible_facts is defined and item.ansible_facts.getent_passwd is defined
