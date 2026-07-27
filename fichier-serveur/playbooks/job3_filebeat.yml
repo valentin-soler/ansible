@@ -6,7 +6,7 @@
     filebeat_version: "9.4.4"
 
   tasks:
-    ### DEBIAN / UBUNTU ###
+        ### DEBIAN / UBUNTU ###
     - name: Installer les dépendances (Debian)
       ansible.builtin.apt:
         name:
@@ -16,24 +16,26 @@
         update_cache: true
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Ajouter la clé GPG Elastic (Debian)
-      ansible.builtin.apt_key:
-        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    - name: Ajouter le dépôt Elastic 9.x avec clé GPG (Debian)
+      ansible.builtin.deb822_repository:
+        name: elastic-9.x
+        types: deb
+        uris: "https://artifacts.elastic.co/packages/9.x/apt"
+        suites: stable
+        components: main
+        signed_by: "https://artifacts.elastic.co/GPG-KEY-elasticsearch"
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Ajouter le dépôt Elastic 9.x (Debian)
-      ansible.builtin.apt_repository:
-        repo: "deb https://artifacts.elastic.co/packages/9.x/apt stable main"
-        state: present
-        filename: elastic-9.x
+    - name: Mettre à jour le cache apt (Debian)
+      ansible.builtin.apt:
+        update_cache: true
       when: ansible_facts['os_family'] == "Debian"
 
     - name: Installer Filebeat {{ filebeat_version }} (Debian)
       ansible.builtin.apt:
         name: "filebeat={{ filebeat_version }}"
         state: present
-        update_cache: true
         allow_downgrade: true
       when: ansible_facts['os_family'] == "Debian"
 
