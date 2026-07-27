@@ -1,16 +1,3 @@
----
-- name: Job 2 - Désactivation des services non essentiels
-  become: true
-  vars:
-    unused_services:
-      - cups
-      - avahi-daemon
-      - bluetooth
-      - ModemManager
-      - wpa_supplicant
-      - rpcbind
-
-  tasks:
     - name: Collecter les informations sur les services (facts)
       ansible.builtin.service_facts:
 
