@@ -1,0 +1,90 @@
+---
+- name: Job 3 - Installation et configuration de Filebeat
+  hosts: all_servers
+  become: true
+  vars:
+    filebeat_version: "9.4.4"
+
+  tasks:
+    ### DEBIAN / UBUNTU ###
+    - name: Installer les dépendances (Debian)
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - gnupg2
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Ajouter la clé GPG Elastic (Debian)
+      ansible.builtin.apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Ajouter le dépôt Elastic 9.x (Debian)
+      ansible.builtin.apt_repository:
+        repo: "deb https://artifacts.elastic.co/packages/9.x/apt stable main"
+        state: present
+        filename: elastic-9.x
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Installer Filebeat {{ filebeat_version }} (Debian)
+      ansible.builtin.apt:
+        name: "filebeat={{ filebeat_version }}"
+        state: present
+        update_cache: true
+        allow_downgrade: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    ### ROCKY / CENTOS ###
+    - name: Ajouter le dépôt Elastic 9.x (Rocky)
+      ansible.builtin.yum_repository:
+        name: elastic-9.x
+        description: Elastic repository for 9.x packages
+        baseurl: https://artifacts.elastic.co/packages/9.x/yum
+        gpgcheck: true
+        gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        enabled: true
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Installer Filebeat {{ filebeat_version }} (Rocky)
+      ansible.builtin.yum:
+        name: "filebeat-{{ filebeat_version }}"
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    ### COMMUN AUX DEUX DISTRIBUTIONS ###
+    - name: Déployer la configuration Filebeat via template Jinja2
+      ansible.builtin.template:
+        src: ../templates/filebeat.yml.j2
+        dest: /etc/filebeat/filebeat.yml
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Redémarrer Filebeat
+
+    - name: Activer le module system de Filebeat
+      ansible.builtin.command: filebeat modules enable system
+      register: enable_system
+      changed_when: "'already enabled' not in enable_system.stdout"
+      failed_when: false
+
+    - name: Activer le module auditd de Filebeat (Rocky uniquement)
+      ansible.builtin.command: filebeat modules enable auditd
+      register: enable_auditd
+      changed_when: "'already enabled' not in enable_auditd.stdout"
+      failed_when: false
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Démarrer et activer le service Filebeat
+      ansible.builtin.service:
+        name: filebeat
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Redémarrer Filebeat
+      ansible.builtin.service:
+        name: filebeat
+        state: restarted

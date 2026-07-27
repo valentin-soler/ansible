@@ -1,0 +1,37 @@
+# Fichier généré automatiquement par Ansible - Ne pas modifier manuellement
+# Managed by Ansible on {{ inventory_hostname }}
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+filebeat.modules:
+  - module: system
+    syslog:
+      enabled: true
+    auth:
+      enabled: true
+{% if ansible_facts['os_family'] == "RedHat" %}
+  - module: auditd
+    log:
+      enabled: true
+{% endif %}
+
+output.logstash:
+  hosts: ["logstash.fictif.local:5044"]
+
+output.console:
+  enabled: false
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat.log
+  keepfiles: 7
+  permissions: 0644
+
+fields:
+  environment: "{{ 'production' if 'webservers' in group_names else 'internal' }}"
+  hostname: "{{ inventory_hostname }}"
+fields_under_root: true
