@@ -1,0 +1,84 @@
+---
+- name: Job 3 - Audit de conformité basique
+  hosts: all_servers
+  become: true
+  vars:
+    critical_files:
+      - path: /etc/passwd
+        expected_mode: "0644"
+      - path: /etc/shadow
+        expected_mode: "0640"
+      - path: /etc/sudoers
+        expected_mode: "0440"
+      - path: /etc/ssh/sshd_config
+        expected_mode: "0600"
+
+  tasks:
+    ### Vérification des fichiers critiques ###
+    - name: Vérifier l'existence et les permissions des fichiers critiques
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+      loop: "{{ critical_files }}"
+      register: file_check
+
+    - name: Afficher un avertissement si un fichier critique est absent
+      ansible.builtin.debug:
+        msg: "⚠️ ALERTE : {{ item.item.path }} est INTROUVABLE sur {{ inventory_hostname }}"
+      loop: "{{ file_check.results }}"
+      when: not item.stat.exists
+
+    - name: Afficher un avertissement si les permissions ne correspondent pas
+      ansible.builtin.debug:
+        msg: "⚠️ ALERTE : {{ item.item.path }} a le mode {{ item.stat.mode }} au lieu de {{ item.item.expected_mode }} sur {{ inventory_hostname }}"
+      loop: "{{ file_check.results }}"
+      when:
+        - item.stat.exists
+        - item.stat.mode != item.item.expected_mode
+
+    - name: Confirmer la conformité des fichiers corrects
+      ansible.builtin.debug:
+        msg: "✅ OK : {{ item.item.path }} conforme ({{ item.stat.mode }}) sur {{ inventory_hostname }}"
+      loop: "{{ file_check.results }}"
+      when:
+        - item.stat.exists
+        - item.stat.mode == item.item.expected_mode
+
+    ### Détection des utilisateurs avec mot de passe vide ###
+    - name: Rechercher les comptes avec mot de passe vide dans /etc/shadow
+      ansible.builtin.shell: |
+        set -o pipefail
+        awk -F: '($2 == "" ) {print $1}' /etc/shadow
+      args:
+        executable: /bin/bash
+      register: empty_password_users
+      changed_when: false
+
+    - name: Afficher les utilisateurs avec mot de passe vide
+      ansible.builtin.debug:
+        msg: "⚠️ ALERTE : utilisateur(s) avec mot de passe vide sur {{ inventory_hostname }} : {{ empty_password_users.stdout_lines }}"
+      when: empty_password_users.stdout_lines | length > 0
+
+    - name: Confirmer qu'aucun compte n'a de mot de passe vide
+      ansible.builtin.debug:
+        msg: "✅ OK : aucun utilisateur avec mot de passe vide sur {{ inventory_hostname }}"
+      when: empty_password_users.stdout_lines | length == 0
+
+    ### Recherche des répertoires en permissions 777 ###
+    - name: Rechercher les répertoires avec permissions 777
+      ansible.builtin.shell: |
+        set -o pipefail
+        find / -xdev -type d -perm 0777 2>/dev/null
+      args:
+        executable: /bin/bash
+      register: world_writable_dirs
+      changed_when: false
+
+    - name: Afficher les répertoires trop permissifs
+      ansible.builtin.debug:
+        msg: "⚠️ ALERTE : répertoires en 777 sur {{ inventory_hostname }} : {{ world_writable_dirs.stdout_lines }}"
+      when: world_writable_dirs.stdout_lines | length > 0
+
+    - name: Confirmer qu'aucun répertoire n'est en 777
+      ansible.builtin.debug:
+        msg: "✅ OK : aucun répertoire en 777 détecté sur {{ inventory_hostname }}"
+      when: world_writable_dirs.stdout_lines | length == 0
