@@ -7,6 +7,7 @@
     suricata_home_net: "192.168.149.0/24"
 
   tasks:
+    ### DEBIAN ###
     - name: Installer Suricata sur Debian
       ansible.builtin.apt:
         name:
@@ -16,6 +17,24 @@
         update_cache: true
       when: ansible_facts['os_family'] == "Debian"
 
+    ### ROCKY ###
+    - name: Installer EPEL sur Rocky
+      ansible.builtin.yum:
+        name: epel-release
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Installer dnf-plugins-core sur Rocky
+      ansible.builtin.yum:
+        name: dnf-plugins-core
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Activer le dépôt CRB sur Rocky
+      ansible.builtin.command: dnf config-manager --set-enabled crb
+      changed_when: false
+      when: ansible_facts['os_family'] == "RedHat"
+
     - name: Installer Suricata sur Rocky
       ansible.builtin.yum:
         name:
@@ -24,6 +43,7 @@
         state: present
       when: ansible_facts['os_family'] == "RedHat"
 
+    ### CONFIGURATION COMMUNE ###
     - name: Déployer la configuration Suricata
       ansible.builtin.template:
         src: ../templates/suricata.yaml.j2
@@ -60,4 +80,4 @@
     - name: Redémarrer Suricata
       ansible.builtin.service:
         name: suricata
-        state: restartedD
+        state: restarted
