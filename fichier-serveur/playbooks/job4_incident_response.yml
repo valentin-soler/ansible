@@ -1,0 +1,90 @@
+---
+- name: Job 4.2 - Réponse à incident simulée
+  hosts: all_servers
+  become: true
+  serial: 1
+  vars:
+    suspect_file: /tmp/malicious_script.sh
+    quarantine_dir: /var/quarantine
+    quarantine_file: "{{ quarantine_dir }}/malicious_script.sh"
+    compromised_service: apache2
+    controller_log: "./incident_response.log"
+
+  tasks:
+    - name: Vérifier la présence du fichier suspect
+      ansible.builtin.stat:
+        path: "{{ suspect_file }}"
+      register: suspect_stat
+
+    - name: Afficher l'absence du fichier suspect
+      ansible.builtin.debug:
+        msg: "Aucun incident détecté sur {{ inventory_hostname }}"
+      when: not suspect_stat.stat.exists
+
+    - name: Traiter l'incident si le fichier suspect est présent
+      when: suspect_stat.stat.exists
+      block:
+        - name: Créer le répertoire de quarantaine
+          ansible.builtin.file:
+            path: "{{ quarantine_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0700'
+
+        - name: Arrêter le service potentiellement compromis
+          ansible.builtin.service:
+            name: "{{ compromised_service }}"
+            state: stopped
+          failed_when: false
+
+        - name: Déplacer le fichier suspect en quarantaine
+          ansible.builtin.command: mv "{{ suspect_file }}" "{{ quarantine_file }}"
+          changed_when: true
+
+        - name: Collecter les derniers logs système
+          ansible.builtin.command: journalctl -n 50 --no-pager
+          register: incident_logs
+          changed_when: false
+          failed_when: false
+
+        - name: Collecter la liste des processus en cours
+          ansible.builtin.command: ps aux
+          register: incident_processes
+          changed_when: false
+
+        - name: Sauvegarder les logs de diagnostic sur la machine cible
+          ansible.builtin.copy:
+            dest: "/var/quarantine/incident_report_{{ inventory_hostname }}.log"
+            owner: root
+            group: root
+            mode: '0600'
+            content: |
+              ===== INCIDENT REPORT =====
+              Host: {{ inventory_hostname }}
+              Date: {{ ansible_date_time.iso8601 }}
+              Suspect file detected: {{ suspect_file }}
+              Quarantined to: {{ quarantine_file }}
+              Service stopped: {{ compromised_service }}
+
+              ===== RECENT LOGS =====
+              {{ incident_logs.stdout | default('Aucun log collecté') }}
+
+              ===== RUNNING PROCESSES =====
+              {{ incident_processes.stdout | default('Aucun processus collecté') }}
+
+        - name: Créer le fichier de log sur le contrôleur
+          ansible.builtin.file:
+            path: "{{ controller_log }}"
+            state: touch
+            mode: '0644'
+          delegate_to: localhost
+          become: false
+
+        - name: Écrire une notification sur le contrôleur
+          ansible.builtin.lineinfile:
+            path: "{{ controller_log }}"
+            create: true
+            line: "[{{ ansible_date_time.iso8601 }}] INCIDENT sur {{ inventory_hostname }} : fichier suspect détecté, service {{ compromised_service }} arrêté, fichier déplacé vers {{ quarantine_file }}"
+          delegate_to: localhost
+          become: false
