@@ -1,0 +1,52 @@
+---
+- name: Job 2 - Désactivation des services non essentiels
+  hosts: all_servers
+  become: true
+  vars:
+    unused_services:
+      - cups
+      - avahi-daemon
+      - bluetooth
+      - ModemManager
+      - wpa_supplicant
+      - rpcbind
+
+  tasks:
+    - name: Collecter les informations sur les services (facts)
+      ansible.builtin.service_facts:
+
+    - name: Vérifier si le service existe avant de le désactiver
+      ansible.builtin.set_fact:
+        service_exists: "{{ (item + '.service') in ansible_facts.services }}"
+      loop: "{{ unused_services }}"
+      loop_control:
+        loop_var: item
+      register: existence_check
+
+    - name: Arrêter le service s'il existe et est actif
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: stopped
+      loop: "{{ unused_services }}"
+      when: (item + '.service') in ansible_facts.services
+      ignore_errors: true
+
+    - name: Désactiver le démarrage automatique du service
+      ansible.builtin.service:
+        name: "{{ item }}"
+        enabled: false
+      loop: "{{ unused_services }}"
+      when: (item + '.service') in ansible_facts.services
+      ignore_errors: true
+
+    - name: Masquer le service pour empêcher tout démarrage manuel
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        masked: true
+      loop: "{{ unused_services }}"
+      when: (item + '.service') in ansible_facts.services
+      ignore_errors: true
+
+    - name: Afficher un résumé des services traités
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} : services non essentiels désactivés et masqués"
