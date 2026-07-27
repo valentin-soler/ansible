@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    root {{ web_root }};
+    index index.html;
+
+    ssl_certificate {{ ssl_cert_path_debian if ansible_facts['os_family'] == 'Debian' else ssl_cert_path_redhat }};
+    ssl_certificate_key {{ ssl_key_path_debian if ansible_facts['os_family'] == 'Debian' else ssl_key_path_redhat }};
+
+    access_log {{ nginx_access_log }};
+    error_log {{ nginx_error_log }};
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

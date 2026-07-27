@@ -1,0 +1,169 @@
+---
+- name: Job 5 - Déploiement sécurisé d'une application web simple
+  hosts: webservers
+  become: true
+
+  vars:
+    web_root: /var/www/secure_app
+    nginx_site_conf_debian: /etc/nginx/sites-available/secure_app.conf
+    nginx_site_link_debian: /etc/nginx/sites-enabled/secure_app.conf
+    nginx_site_conf_redhat: /etc/nginx/conf.d/secure_app.conf
+    cert_common_name: "{{ inventory_hostname }}"
+    ssl_cert_path_debian: /etc/ssl/certs/secure_app.crt
+    ssl_key_path_debian: /etc/ssl/private/secure_app.key
+    ssl_cert_path_redhat: /etc/pki/tls/certs/secure_app.crt
+    ssl_key_path_redhat: /etc/pki/tls/private/secure_app.key
+    nginx_access_log: /var/log/nginx/access.log
+    nginx_error_log: /var/log/nginx/error.log
+
+  pre_tasks:
+    - name: Collecter les facts
+      ansible.builtin.setup:
+
+  roles:
+    - hardening_base
+
+  tasks:
+    - name: Installer Nginx sur Debian
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Installer Nginx sur Rocky
+      ansible.builtin.yum:
+        name: nginx
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Installer python3-cryptography sur Debian
+      ansible.builtin.apt:
+        name: python3-cryptography
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Installer python3-cryptography sur Rocky
+      ansible.builtin.yum:
+        name: python3-cryptography
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Créer le répertoire web
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Déployer la page HTML statique
+      ansible.builtin.template:
+        src: ../templates/index.html.j2
+        dest: "{{ web_root }}/index.html"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Redémarrer Nginx
+
+    - name: Générer la clé privée SSL sur Debian
+      community.crypto.openssl_privatekey:
+        path: "{{ ssl_key_path_debian }}"
+        size: 2048
+        type: RSA
+        mode: '0600'
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Générer le certificat auto-signé sur Debian
+      community.crypto.x509_certificate:
+        path: "{{ ssl_cert_path_debian }}"
+        privatekey_path: "{{ ssl_key_path_debian }}"
+        provider: selfsigned
+        selfsigned_not_after: "+365d"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Générer la clé privée SSL sur Rocky
+      community.crypto.openssl_privatekey:
+        path: "{{ ssl_key_path_redhat }}"
+        size: 2048
+        type: RSA
+        mode: '0600'
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Générer le certificat auto-signé sur Rocky
+      community.crypto.x509_certificate:
+        path: "{{ ssl_cert_path_redhat }}"
+        privatekey_path: "{{ ssl_key_path_redhat }}"
+        provider: selfsigned
+        selfsigned_not_after: "+365d"
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Déployer la configuration Nginx sur Debian
+      ansible.builtin.template:
+        src: ../templates/nginx_secure_site.conf.j2
+        dest: "{{ nginx_site_conf_debian }}"
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_facts['os_family'] == "Debian"
+      notify: Redémarrer Nginx
+
+    - name: Activer le site Nginx sur Debian
+      ansible.builtin.file:
+        src: "{{ nginx_site_conf_debian }}"
+        dest: "{{ nginx_site_link_debian }}"
+        state: link
+      when: ansible_facts['os_family'] == "Debian"
+      notify: Redémarrer Nginx
+
+    - name: Désactiver le site par défaut sur Debian
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: ansible_facts['os_family'] == "Debian"
+      notify: Redémarrer Nginx
+
+    - name: Déployer la configuration Nginx sur Rocky
+      ansible.builtin.template:
+        src: ../templates/nginx_secure_site.conf.j2
+        dest: "{{ nginx_site_conf_redhat }}"
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_facts['os_family'] == "RedHat"
+      notify: Redémarrer Nginx
+
+    - name: Vérifier si Filebeat est installé
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Déployer la configuration Filebeat pour Nginx
+      ansible.builtin.template:
+        src: ../templates/filebeat_nginx.yml.j2
+        dest: /etc/filebeat/modules.d/nginx.yml
+        owner: root
+        group: root
+        mode: '0644'
+      when: "'filebeat' in ansible_facts.packages"
+      notify: Redémarrer Filebeat
+
+    - name: Activer et démarrer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Vérifier la configuration Nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+  handlers:
+    - name: Redémarrer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+    - name: Redémarrer Filebeat
+      ansible.builtin.service:
+        name: filebeat
+        state: restarted
