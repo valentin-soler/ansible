@@ -1,0 +1,63 @@
+---
+- name: Job 4 - Déploiement d'un IDS Suricata
+  hosts: idsservers
+  become: true
+  vars:
+    suricata_interface: "{{ ansible_default_ipv4.interface }}"
+    suricata_home_net: "192.168.149.0/24"
+
+  tasks:
+    - name: Installer Suricata sur Debian
+      ansible.builtin.apt:
+        name:
+          - suricata
+          - suricata-update
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Installer Suricata sur Rocky
+      ansible.builtin.yum:
+        name:
+          - suricata
+          - suricata-update
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Déployer la configuration Suricata
+      ansible.builtin.template:
+        src: ../templates/suricata.yaml.j2
+        dest: /etc/suricata/suricata.yaml
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      notify: Redémarrer Suricata
+
+    - name: Mettre à jour les règles Suricata
+      ansible.builtin.command: suricata-update
+      register: suricata_update_result
+      changed_when: "'No changes detected' not in suricata_update_result.stdout"
+      failed_when: false
+      notify: Redémarrer Suricata
+
+    - name: Tester la configuration Suricata
+      ansible.builtin.command: suricata -T -c /etc/suricata/suricata.yaml -v
+      register: suricata_test
+      changed_when: false
+
+    - name: Démarrer et activer Suricata
+      ansible.builtin.service:
+        name: suricata
+        state: started
+        enabled: true
+
+    - name: Afficher le résultat du test de configuration
+      ansible.builtin.debug:
+        msg: "{{ suricata_test.stdout_lines }}"
+
+  handlers:
+    - name: Redémarrer Suricata
+      ansible.builtin.service:
+        name: suricata
+        state: restartedD
