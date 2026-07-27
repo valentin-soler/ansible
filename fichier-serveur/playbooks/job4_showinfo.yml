@@ -1,0 +1,21 @@
+---
+- name: Job 4.4 - Gestion des Facts
+  hosts: all_servers
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Collecter les facts système avec setup
+      ansible.builtin.setup:
+
+    - name: Afficher la version du système d'exploitation
+      ansible.builtin.debug:
+        msg: "OS : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+
+    - name: Afficher la famille du système
+      ansible.builtin.debug:
+        msg: "Famille OS : {{ ansible_facts['os_family'] }}"
+
+    - name: Afficher la quantité totale de RAM
+      ansible.builtin.debug:
+        msg: "RAM totale : {{ ansible_facts['memtotal_mb'] }} MB"
