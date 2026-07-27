@@ -1,0 +1,92 @@
+---
+- name: Installer UFW (Debian)
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Définir la politique par défaut - trafic entrant refusé (Debian)
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Définir la politique par défaut - trafic sortant autorisé (Debian)
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Autoriser le port SSH personnalisé sur Debian
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Autoriser HTTP sur Debian
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Autoriser HTTPS sur Debian
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Activer UFW (Debian)
+  community.general.ufw:
+    state: enabled
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Installer firewalld (Rocky)
+  ansible.builtin.yum:
+    name: firewalld
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Démarrer et activer firewalld (Rocky)
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Définir la zone par défaut en drop (Rocky)
+  ansible.builtin.command: firewall-cmd --set-default-zone=drop
+  changed_when: false
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Autoriser le port SSH personnalisé sur Rocky
+  ansible.posix.firewalld:
+    port: "{{ ssh_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Autoriser HTTP sur Rocky
+  ansible.posix.firewalld:
+    port: 80/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Autoriser HTTPS sur Rocky
+  ansible.posix.firewalld:
+    port: 443/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Recharger firewalld (Rocky)
+  ansible.builtin.command: firewall-cmd --reload
+  changed_when: false
+  when: ansible_facts['os_family'] == "RedHat"
