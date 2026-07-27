@@ -1,3 +1,19 @@
 #SPDX-License-Identifier: MIT-0
 ---
-# defaults file for roles/hardening_base
+ssh_port: 2002
+risky_users:
+  - games
+  - lp
+  - news
+  - uucp
+  - gopher
+  - ftp
+  - operator
+admin_user: ansible_admin
+unused_services:
+  - cups
+  - avahi-daemon
+  - bluetooth
+  - ModemManager
+  - wpa_supplicant
+  - rpcbind

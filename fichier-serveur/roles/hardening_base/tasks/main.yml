@@ -1,3 +1,13 @@
 #SPDX-License-Identifier: MIT-0
 ---
-# tasks file for roles/hardening_base
+- name: Inclure les tâches de gestion des utilisateurs
+  ansible.builtin.include_tasks: users.yml
+
+- name: Inclure les tâches de durcissement SSH
+  ansible.builtin.include_tasks: ssh.yml
+
+- name: Inclure les tâches de configuration du pare-feu
+  ansible.builtin.include_tasks: firewall.yml
+
+- name: Inclure les tâches de désactivation des services inutiles
+  ansible.builtin.include_tasks: services.yml

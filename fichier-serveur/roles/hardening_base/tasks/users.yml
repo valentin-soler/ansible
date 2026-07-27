@@ -1,0 +1,39 @@
+---
+- name: Vérifier l'existence des utilisateurs avant suppression
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: "{{ risky_users }}"
+  register: user_check
+  failed_when: false
+
+- name: Supprimer les utilisateurs à risque s'ils existent
+  ansible.builtin.user:
+    name: "{{ item.item }}"
+    state: absent
+    remove: true
+    force: true
+  loop: "{{ user_check.results }}"
+  when: item.ansible_facts is defined and item.ansible_facts.getent_passwd is defined
+
+- name: Créer l'utilisateur admin dédié
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    password: "{{ vault_ansible_admin_password }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Ajouter l'admin au groupe sudo (Debian)
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: sudo
+    append: true
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Ajouter l'admin au groupe wheel (RedHat)
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: wheel
+    append: true
+  when: ansible_facts['os_family'] == "RedHat"

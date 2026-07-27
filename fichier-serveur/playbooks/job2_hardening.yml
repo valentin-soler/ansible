@@ -1,0 +1,6 @@
+---
+- name: Job 2 - Hardening des systèmes via rôle
+  hosts: all_servers
+  become: true
+  roles:
+    - hardening_baseD
